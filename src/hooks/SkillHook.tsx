@@ -48,19 +48,30 @@ export function useSkills(
     spyware: ['dataCompression', 'silentHarvest', 'adaptiveSurveillance', 'packetJammer']
   } as const;
 
-  // Column multipliers based on selected skill tree
+  // Column multipliers based on unlocked skills in each column
   const getColumnMultipliers = () => {
     let virusGenMultiplier = 1;
     let dataGenMultiplier = 1;
+    let debuggingSpeedMultiplier = 1; // Base debugging speed multiplier
     
-    if (selectedSkillColumn === 'worms') {
+    // Check if any worms skills are unlocked
+    const wormsUnlocked = columnSkills.worms.some(skill => unlockedSkills[skill]);
+    // Check if any spyware skills are unlocked  
+    const spywareUnlocked = columnSkills.spyware.some(skill => unlockedSkills[skill]);
+    // Check if any trojan skills are unlocked
+    const trojanUnlocked = columnSkills.trojan.some(skill => unlockedSkills[skill]);
+    
+    if (wormsUnlocked) {
       virusGenMultiplier = 2; // x2 Virus Generation
-    } else if (selectedSkillColumn === 'spyware') {
+    }
+    if (spywareUnlocked) {
       dataGenMultiplier = 2; // x2 Data Generation
     }
-    // Trojan doesn't have a base multiplier, it slows debugging instead
+    if (trojanUnlocked) {
+      debuggingSpeedMultiplier = 1.5; // +50% debugging speed reduction (slows debugging by 50%)
+    }
     
-    return { virusGenMultiplier, dataGenMultiplier };
+    return { virusGenMultiplier, dataGenMultiplier, debuggingSpeedMultiplier };
   };
 
   const toggleSkill = (skillName: keyof SkillState) => {
@@ -95,8 +106,9 @@ export function useSkills(
         (skills as readonly string[]).includes(skillName)
       )?.[0];
       
-      // If this is the first skill being unlocked, set the selected column
-      if (skillColumn && !selectedSkillColumn && newState[skillName]) {
+      // Set the selected column if this skill belongs to a column and no column is selected yet
+      // OR if this is the first skill from any column being unlocked
+      if (skillColumn && (!selectedSkillColumn || !Object.values(newState).some(Boolean))) {
         setSelectedSkillColumn(skillColumn);
       }
       
@@ -129,7 +141,7 @@ export function useSkills(
       const interval = setInterval(() => {
         setAdaptiveSurveillanceLevel((prev) => {
           const newLevel = prev + 1;
-          console.log(`Adaptive Surveillance upgraded to level ${newLevel}! Data generation bonus: +${(0.12 + newLevel * 0.02) * 100}%`);
+          console.log(`Adaptive Surveillance upgraded to level ${newLevel}! Data generation bonus: +${(newLevel * 1.5).toFixed(1)}% (cumulative)`);
           return newLevel;
         });
       }, 60000); // 60,000ms = 1 minute

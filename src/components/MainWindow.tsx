@@ -26,6 +26,12 @@ export function MainWindow({
   virusCount,
   setVirusCount,
 }: MainWindowProps) {
+
+  // Helper function to format numbers - show decimal only if needed
+  const formatNumber = (num: number): string => {
+    return num % 1 === 0 ? num.toString() : num.toFixed(1);
+  };
+
   const {
     dataCount,
     virusCost,
@@ -51,6 +57,7 @@ export function MainWindow({
     upgDataLevel,
     upgVirusLevel,
     skillEffects,
+    debuggingSpeedMultiplier,
   } = useButton(SkillHook, virusCount, setVirusCount); // Pass external virus count and setter
   // REMOVE Antivirus Software from initial state!
   const [warningShown, setWarningShown] = useState(false);
@@ -61,7 +68,7 @@ export function MainWindow({
   const [gameOver, setGameOver] = useState(false);
   const [mobileTierAcquired, setMobileTierAcquired] = useState(false);
 
-  // Show warning and antivirus windows only once when virusCount >= 10
+  // Show warning and antivirus windows only once when mobileTierAcquired becomes true
   useEffect(() => {
     if (mobileTierAcquired && !warningShown) {
       setAntivirusActive(true);
@@ -103,23 +110,24 @@ export function MainWindow({
       });
       setWarningShown(true);
     }
-  }, [virusCount, warningShown, setWindows]);
+  }, [mobileTierAcquired, warningShown, setWindows, onAddApp]);
 
   // Antivirus progress effect
   useEffect(() => {
     if (!antivirusActive) return;
     if (antivirusProgress >= 100) return;
-
     // need balancing. draft also because its affected by skill trees and tiers
 
     // Apply debugging speed reduction from skills (higher reduction = slower debugging = longer intervals)
+    // Also apply column multiplier effect (Trojan column slows debugging by 50%)
     const baseProgressInterval = 10000; // 10 seconds base
-    const effectiveProgressInterval =
-      baseProgressInterval * (1 + skillEffects.debuggingSpeedReduction);
+    const skillSlowdown = 1 + skillEffects.debuggingSpeedReduction;
+    const columnSlowdown = debuggingSpeedMultiplier;
+    const effectiveProgressInterval = baseProgressInterval * skillSlowdown * columnSlowdown;
 
     console.log("Effective progress interval (ms):", effectiveProgressInterval);
 
-    //1% every 10 seconds (base), but slowed by debugging speed reduction
+    // 1% every interval (base), but slowed by debugging speed reduction
     const progressInterval = setInterval(() => {
       setAntivirusProgress((prev) => {
         const next = Math.min(100, prev + 1);
@@ -128,21 +136,29 @@ export function MainWindow({
       });
     }, effectiveProgressInterval);
 
-    // Decrease virus count by 10% every 3 seconds
+    // Decrease virus count by percentage every 2 seconds
     const virusInterval = setInterval(() => {
       setVirusCount((prev) => {
-        const decrease = Math.floor(prev * 0.1);
+        if (prev === 0) return 0; // No viruses to decay
+        
+        // Apply virus decay reduction from Stealth Buffer skill
+        const baseDecayRate = 0.1; // 10% base decay rate
+        const effectiveDecayRate = baseDecayRate * (1 - skillEffects.virusDecayReduction);
+        
+        // Use ceiling to ensure at least 1 virus is removed when there are viruses
+        const decrease = prev < 10 ? Math.ceil(prev * effectiveDecayRate) : Math.floor(prev * effectiveDecayRate);
         const next = Math.max(0, prev - decrease);
-        console.log(`Virus count: ${prev}, -10% (${decrease}) → ${next}`);
+        
+        console.log(`Virus count: ${prev}, -${(effectiveDecayRate * 100).toFixed(1)}% (${decrease}) → ${next}`);
         return next;
       });
-    }, 3000);
+    }, 2000);
 
     return () => {
       clearInterval(progressInterval);
       clearInterval(virusInterval);
     };
-  }, [antivirusActive, antivirusProgress, setVirusCount]);
+  }, [antivirusActive, antivirusProgress, skillEffects.debuggingSpeedReduction, skillEffects.virusDecayReduction, debuggingSpeedMultiplier]);
 
   // Alert when antivirus completes
   useEffect(() => {
@@ -169,16 +185,16 @@ export function MainWindow({
     );
   }, [showServerUpgrades, setWindows]);
 
-  // Show tier window when data >= 50 and virus >= 30
+  // Show tier window when upgVirusLevel >= 3 OR when creepingSpawn is active
   useEffect(() => {
-    if (dataCount >= 1 && virusCount >= 0 && !tierShown) {
+    if ((upgVirusLevel >= 3 || skillEffects.autoUnlockMobileTier) && !tierShown) {
       setWindows((prev) =>
         prev.map((w) => (w.id === "tier" ? { ...w, open: true } : w)),
       );
       onAddApp({ id: "tier", title: "Tier" });
       setTierShown(true);
     }
-  }, [dataCount, virusCount, tierShown, setWindows, onAddApp]);
+  }, [upgVirusLevel, skillEffects.autoUnlockMobileTier, tierShown, setWindows, onAddApp]);
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [lastMouse, setLastMouse] = useState({ x: 0, y: 0 });
@@ -304,10 +320,10 @@ export function MainWindow({
               >
                 {w.id === "resources" && (
                   <div className="m-2">
-                    <p>Virus: {virusCount}</p>
-                    <p>Data: {dataCount}</p>
+                    <p>Virus: {formatNumber(virusCount)}</p>
+                    <p>Data: {formatNumber(dataCount)}</p>
                     <p className={`${serverExist ? "" : "hidden"}`}>
-                      Packets: {packetCount}
+                      Packets: {formatNumber(packetCount)}
                     </p>
                   </div>
                 )}
@@ -392,6 +408,7 @@ export function MainWindow({
                       upgDataLevel={upgDataLevel}
                       upgPacketLevel={upgPacketLevel}
                       handleServerUpgrade={handleServerUpgrade}
+                      skillEffects={skillEffects}
                     />
                   </div>
                 )}
