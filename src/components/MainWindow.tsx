@@ -260,20 +260,38 @@ export function MainWindow({
               onMouseDown={(e) => handleMouseDown(w.id, e)}
             >
               <div className="font-sans">{w.title}</div>
-              <button
-                className="close-button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setWindows((prev) =>
-                    prev.map((win) =>
-                      win.id === w.id ? { ...win, open: false } : win,
-                    ),
-                  );
-                }}
-                onMouseDown={(e) => e.stopPropagation()}
-              >
-                ×
-              </button>
+              {/* will show on all windows except server-upgrades */}
+              {w.id !== "server-upgrades" && (
+                <button
+                  className="close-button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+
+                    // set 'Close Button' in data-center to reset showServerUpgrades upon closing
+                    if (w.id === "data-center" && showServerUpgrades) {
+                      handleServerClick(); // since server exists, this will only toggle the upgrades off
+                    }
+                    setWindows((prev) =>
+                      prev.map((win) => {
+                        if (win.id === w.id) {
+                          return { ...win, open: false };
+                        }
+                        // if closing data-center, also close server-upgrades window
+                        if (
+                          w.id === "data-center" &&
+                          win.id === "server-upgrades"
+                        ) {
+                          return { ...win, open: false };
+                        }
+                        return win;
+                      }),
+                    );
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  ×
+                </button>
+              )}
               <div
                 className={`tab-internal pointer-events-auto cursor-auto ${
                   w.id === "data-center" ? "bg-amber-400" : ""
